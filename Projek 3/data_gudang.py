@@ -1,3 +1,4 @@
+import os
 import requests
 from flask import Flask, render_template
 
@@ -6,17 +7,20 @@ from flask import Flask, render_template
 # =========================================================================
 
 # Inisialisasi Objek Aplikasi Flask
-app = Flask(__name__) 
+app = Flask(__name__)
 
-# Variabel Global untuk URL API SheetDB Anda
-# WAJIB GANTI placeholder ini dengan URL API unik Anda!
-SHEETDB_URL = "https://sheetdb.io/api/v1/GANTI_DENGAN_API_KEY_ANDA" 
+# Mengambil URL SheetDB dari Environment Variable Render.
+# Ini penting untuk keamanan dan deployment!
+SHEETDB_URL = os.environ.get("SHEETDB_URL") 
+# Jika Anda menjalankan secara lokal, Anda bisa mengganti baris di atas dengan:
+# SHEETDB_URL = "https://sheetdb.io/api/v1/GANTI_DENGAN_API_KEY_ANDA" 
+# dan pastikan Anda menginstal python-dotenv untuk testing lokal.
 
 # Harga Beli & Jual yang Ditetapkan di Python (Fixed Data)
 HARGA_PRODUK = {
     "kopi": {
         "beli": 10000, 
-        "jual": 12000  
+        "jual": 12000 
     },
     "gula": {
         "beli": 13000,
@@ -34,15 +38,22 @@ def hitung_laporan():
     Metode utama yang menangani permintaan web, mengambil data dari API, 
     melakukan perhitungan, dan menampilkan hasilnya di template HTML.
     """
+    
+    # ⚠️ Cek Keberadaan URL untuk menghindari error 500 saat deployment
+    if not SHEETDB_URL:
+        return "<h1>Error Konfigurasi</h1><p>Variabel lingkungan SHEETDB_URL belum diatur di Render.</p>", 500
+        
     try:
         # A. Fetch Data dari SheetDB
         response = requests.get(SHEETDB_URL)
         response.raise_for_status() # Cek status HTTP 4xx/5xx
         data_transaksi = response.json()
     except requests.exceptions.RequestException as e:
+        # Error koneksi
         return f"<h1>Error Koneksi API: {e}</h1><p>Pastikan SheetDB URL Anda sudah benar dan layanan aktif.</p>", 500
     except ValueError:
-        return "<h1>Error: Respons dari SheetDB bukan format JSON.</h1>", 500
+        # Error format JSON
+        return "<h1>Error: Respons dari SheetDB bukan format JSON yang valid.</h1>", 500
 
     
     # B. Inisialisasi Akumulator (Menyimpan Total Sementara)
@@ -105,11 +116,5 @@ def hitung_laporan():
     # F. Tampilkan ke Web menggunakan template laporan.html
     return render_template('laporan.html', data=laporan)
 
-# =========================================================================
-# 3. MENJALANKAN SERVER
-# =========================================================================
-
-if __name__ == '__main__':
-    # Pastikan Anda telah menginstal Flask: pip install flask requests
-    # Gunakan debug=True agar perubahan kode langsung di-load ulang
-    app.run(debug=True)
+# CATATAN: Blok if __name__ == '__main__': dihilangkan. 
+# Aplikasi dijalankan oleh Gunicorn (Procfile) di Render.
